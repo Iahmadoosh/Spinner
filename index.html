@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rigged Wheel Spinner</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <h1>🎡 Wheel Spinner</h1>
+
+  <div class="container">
+
+    <!-- ── Wheel ── -->
+    <div class="wheel-section">
+      <div class="wheel-wrapper">
+        <div class="pointer">▼</div>
+        <canvas id="wheelCanvas" width="400" height="400"></canvas>
+      </div>
+
+      <button id="spinBtn" onclick="spin()">SPIN</button>
+      <div id="result" class="result"></div>
+    </div>
+
+    <!-- ── Controls ── -->
+    <div class="controls-section">
+
+      <!-- Entry management -->
+      <div class="panel">
+        <h2>Entries</h2>
+        <div id="entriesList"></div>
+        <div class="add-entry">
+          <input type="text" id="newEntry" placeholder="Add a new entry…" maxlength="40" />
+          <button onclick="addEntry()">Add</button>
+        </div>
+      </div>
+
+      <!-- Rig panel -->
+      <div class="panel">
+        <h2>Rig the Spinner <span class="rig-badge">CHEAT</span></h2>
+
+        <label class="rig-toggle-row">
+          <input type="checkbox" id="rigEnabled" onchange="updateRigUI()" />
+          <span>Enable rigging</span>
+        </label>
+
+        <div id="rigControls" class="rig-controls hidden">
+          <label for="rigSelect">Guaranteed winner</label>
+          <select id="rigSelect"></select>
+          <p class="rig-note">The wheel will look random but always land on this entry.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
