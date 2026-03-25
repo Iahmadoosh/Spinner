@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wheel Spinner</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 40px;
+    }
+
+    h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+      margin-bottom: 28px;
+      text-shadow: 0 0 20px rgba(100, 200, 255, 0.4);
+      user-select: none;
+    }
+
+    .main-layout {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 32px;
+      justify-content: center;
+      align-items: flex-start;
+      width: 100%;
+      max-width: 900px;
+    }
+
+    /* ─── Wheel area ─── */
+    .wheel-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .wheel-container {
+      position: relative;
+      width: 380px;
+      height: 380px;
+    }
+
+    #wheelCanvas {
+      border-radius: 50%;
+      filter: drop-shadow(0 0 24px rgba(100, 200, 255, 0.35));
+      cursor: default;
+    }
+
+    /* Pointer / arrow at top */
+    .pointer {
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 14px solid transparent;
+      border-right: 14px solid transparent;
+      border-top: 28px solid #ff4d6d;
+      filter: drop-shadow(0 2px 6px rgba(255, 77, 109, 0.7));
+      z-index: 10;
+    }
+
+    /* Center hub overlay (also the secret click target) */
+    #hubOverlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 5;
+      /* invisible — just a click target over the hub */
+    }
+
+    #spinBtn {
+      padding: 14px 48px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      border: none;
+      border-radius: 50px;
+      background: linear-gradient(135deg, #e94560, #0f3460);
+      color: #fff;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 4px 20px rgba(233, 69, 96, 0.5);
+    }
+    #spinBtn:hover:not(:disabled) { transform: scale(1.06); box-shadow: 0 6px 28px rgba(233, 69, 96, 0.7); }
+    #spinBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* Result banner */
+    #resultBanner {
+      min-height: 44px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.5s;
+      background: rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 8px 24px;
+    }
+    #resultBanner.show { opacity: 1; }
+
+    /* ─── Sidebar ─── */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      width: 260px;
+      min-width: 220px;
+    }
+
+    .panel {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      padding: 18px;
+    }
+
+    .panel h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #a0c4ff;
+      margin-bottom: 12px;
+    }
+
+    .add-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .add-row input {
+      flex: 1;
+      padding: 9px 12px;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .add-row input::placeholder { color: rgba(255,255,255,0.35); }
+    .add-row input:focus { border-color: #64c8ff; }
+
+    .add-row button, .remove-btn {
+      padding: 9px 16px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 700;
+      transition: transform 0.12s, opacity 0.12s;
+    }
+    .add-row button { background: #64c8ff; color: #0f3460; }
+    .add-row button:hover { transform: scale(1.07); }
+
+    #segmentList {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 280px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.2) transparent;
+    }
+    #segmentList li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255,255,255,0.07);
+      border-radius: 10px;
+      padding: 7px 10px;
+      font-size: 0.9rem;
+    }
+    #segmentList li .dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+      flex-shrink: 0;
+    }
+    #segmentList li .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .remove-btn {
+      background: rgba(233,69,96,0.25);
+      color: #ff8fa3;
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      margin-left: 6px;
+    }
+    .remove-btn:hover { background: rgba(233,69,96,0.5); }
+
+    /* ─── Secret / Rig panel ─── */
+    #rigPanel {
+      display: none;
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      width: 260px;
+      background: #0f3460;
+      border: 1px solid #e94560;
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 0 32px rgba(233, 69, 96, 0.5);
+      z-index: 100;
+      animation: fadeSlideIn 0.25s ease;
+    }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    #rigPanel h3 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #e94560;
+      margin-bottom: 10px;
+    }
+    #rigPanel p {
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.55);
+      margin-bottom: 12px;
+    }
+    #rigSelect {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      font-size: 0.92rem;
+      outline: none;
+      margin-bottom: 12px;
+    }
+    #rigSelect option { background: #0f3460; }
+
+    .rig-actions { display: flex; gap: 8px; }
+    #rigConfirmBtn, #rigClearBtn, #rigCloseBtn {
+      flex: 1;
+      padding: 8px 0;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 700;
+      transition: opacity 0.15s;
+    }
+    #rigConfirmBtn { background: #e94560; color: #fff; }
+    #rigClearBtn   { background: rgba(255,255,255,0.12); color: #ccc; }
+    #rigCloseBtn   { background: rgba(255,255,255,0.06); color: #888; }
+    #rigConfirmBtn:hover { opacity: 0.85; }
+    #rigClearBtn:hover, #rigCloseBtn:hover { opacity: 0.75; }
+
+    #rigBadge {
+      display: none;
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 14px; height: 14px;
+      background: #e94560;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #e94560;
+      z-index: 6;
+    }
+    #rigBadge.active { display: block; }
+
+    /* Ripple flash on hub click (visual feedback for secret clicks) */
+    .hub-ripple {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: rgba(233,69,96,0.45);
+      animation: rippleAnim 0.5s ease-out forwards;
+      pointer-events: none;
+      z-index: 4;
+    }
+    @keyframes rippleAnim {
+      to { transform: translate(-50%, -50%) scale(3.5); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>🎡 Wheel Spinner</h1>
+
+<div class="main-layout">
+
+  <!-- Wheel -->
+  <div class="wheel-area">
+    <div class="wheel-container" id="wheelContainer">
+      <div class="pointer"></div>
+      <canvas id="wheelCanvas" width="380" height="380"></canvas>
+      <div id="hubOverlay" title=""></div>
+      <div id="rigBadge"></div>
+    </div>
+    <button id="spinBtn">SPIN</button>
+    <div id="resultBanner">–</div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="panel">
+      <h2>Segments</h2>
+      <div class="add-row">
+        <input type="text" id="newSegmentInput" placeholder="Add segment…" maxlength="40" />
+        <button id="addBtn">Add</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Entries</h2>
+      <ul id="segmentList"></ul>
+    </div>
+  </div>
+
+</div>
+
+<!-- Secret rig panel (hidden) -->
+<div id="rigPanel">
+  <h3>🔒 Predetermined Result</h3>
+  <p>The wheel will stop on the selected entry next spin.</p>
+  <select id="rigSelect"></select>
+  <div class="rig-actions">
+    <button id="rigConfirmBtn">Set</button>
+    <button id="rigClearBtn">Clear</button>
+    <button id="rigCloseBtn">Close</button>
+  </div>
+</div>
+
+<script>
+  // ── Palette ──────────────────────────────────────────────────────────────
+  const PALETTE = [
+    '#e94560','#0f3460','#16213e','#533483',
+    '#e94f37','#393e46','#00adb5','#f5a623',
+    '#6a0572','#1b4332','#d62828','#023e8a',
+    '#f4a261','#2d6a4f','#7b2d8b','#457b9d',
+  ];
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let segments = ['Option A', 'Option B', 'Option C', 'Option D', 'Option E'];
+  let spinning  = false;
+  let currentAngle = 0;        // radians, top of wheel is start
+  let riggedIndex  = -1;       // -1 = not rigged
+
+  // Spin physics constants
+  const MIN_EXTRA_SPINS         = 5;    // minimum full rotations before landing
+  const MAX_ADDITIONAL_SPINS    = 5;    // additional random rotations (total: 5–9)
+  const MIN_SPIN_DURATION_MS    = 4500; // shortest possible spin animation (ms)
+  const MAX_ADDITIONAL_DURATION_MS = 1500; // extra random duration added (ms)
+  const EASE_OUT_POWER          = 4;    // exponent for easeOut curve
+
+  // Secret hub-click counter
+  let hubClicks = 0;
+  let hubClickTimer = null;
+  const HUB_SECRET_CLICKS    = 5;    // clicks needed to open the rig panel
+  const HUB_CLICK_TIMEOUT_MS = 1500; // ms window to complete the secret clicks
+
+  // ── DOM refs ──────────────────────────────────────────────────────────────
+  const canvas       = document.getElementById('wheelCanvas');
+  const ctx          = canvas.getContext('2d');
+  const spinBtn      = document.getElementById('spinBtn');
+  const resultBanner = document.getElementById('resultBanner');
+  const newInput     = document.getElementById('newSegmentInput');
+  const addBtn       = document.getElementById('addBtn');
+  const segList      = document.getElementById('segmentList');
+  const rigPanel     = document.getElementById('rigPanel');
+  const rigSelect    = document.getElementById('rigSelect');
+  const rigConfirm   = document.getElementById('rigConfirmBtn');
+  const rigClear     = document.getElementById('rigClearBtn');
+  const rigClose     = document.getElementById('rigCloseBtn');
+  const rigBadge     = document.getElementById('rigBadge');
+  const hubOverlay   = document.getElementById('hubOverlay');
+  const wheelCont    = document.getElementById('wheelContainer');
+
+  // ── Drawing ───────────────────────────────────────────────────────────────
+  function drawWheel() {
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const r  = cx - 4;
+    const n  = segments.length;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (n === 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.font = '16px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText('Add segments above', cx, cy);
+      return;
+    }
+
+    const slice = (Math.PI * 2) / n;
+
+    for (let i = 0; i < n; i++) {
+      const start = currentAngle + i * slice;
+      const end   = start + slice;
+
+      // Slice fill
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, start, end);
+      ctx.closePath();
+      ctx.fillStyle = PALETTE[i % PALETTE.length];
+      ctx.fill();
+
+      // Subtle border
+      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Label
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(start + slice / 2);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${n > 10 ? 11 : 13}px Segoe UI`;
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur  = 4;
+      const label = segments[i].length > 18 ? segments[i].slice(0, 16) + '…' : segments[i];
+      ctx.fillText(label, r - 12, 5);
+      ctx.restore();
+    }
+
+    // Outer ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Center hub
+    ctx.beginPath();
+    ctx.arc(cx, cy, 26, 0, Math.PI * 2);
+    ctx.fillStyle = '#0f3460';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
+
+  // ── Segment list UI ───────────────────────────────────────────────────────
+  function renderList() {
+    segList.innerHTML = '';
+    segments.forEach((seg, i) => {
+      const li  = document.createElement('li');
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.style.background = PALETTE[i % PALETTE.length];
+      const lbl = document.createElement('span');
+      lbl.className = 'label';
+      lbl.textContent = seg;
+      const btn = document.createElement('button');
+      btn.className = 'remove-btn';
+      btn.textContent = '✕';
+      btn.setAttribute('aria-label', `Remove ${seg}`);
+      btn.addEventListener('click', () => removeSegment(i));
+      li.appendChild(dot);
+      li.appendChild(lbl);
+      li.appendChild(btn);
+      segList.appendChild(li);
+    });
+    // Sync rig select
+    syncRigSelect();
+  }
+
+  function addSegment() {
+    const val = newInput.value.trim();
+    if (!val) return;
+    segments.push(val);
+    newInput.value = '';
+    // If rigged index was valid, keep it pointing at the same name (index unchanged)
+    renderList();
+    drawWheel();
+  }
+
+  function removeSegment(idx) {
+    if (spinning) return;
+    const removingRigged = riggedIndex === idx;
+    segments.splice(idx, 1);
+    if (removingRigged) {
+      riggedIndex = -1;
+      updateRigBadge();
+    } else if (riggedIndex > idx) {
+      riggedIndex--;
+    }
+    renderList();
+    drawWheel();
+  }
+
+  // ── Spin logic ────────────────────────────────────────────────────────────
+  function spin() {
+    if (spinning || segments.length === 0) return;
+    spinning = true;
+    spinBtn.disabled = true;
+    resultBanner.classList.remove('show');
+
+    const n = segments.length;
+    const slice = (Math.PI * 2) / n;
+
+    // Total rotation: several full spins + landing angle
+    const extraSpins = (MIN_EXTRA_SPINS + Math.floor(Math.random() * MAX_ADDITIONAL_SPINS)) * Math.PI * 2;
+
+    let targetAngle;
+    if (riggedIndex >= 0 && riggedIndex < n) {
+      // Land so that the rigged slice sits under the pointer (top = -π/2)
+      // Pointer is at the top; the pointer angle on the wheel corresponds to -currentAngle (mod 2π)
+      // We want:  currentAngle + riggedIndex*slice + slice/2  ≡  -π/2  (mod 2π)
+      // i.e. the midpoint of the rigged slice faces straight up.
+      const mid = riggedIndex * slice + slice / 2;
+      const needed = ((-Math.PI / 2 - mid) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+      targetAngle = needed + extraSpins;
+    } else {
+      targetAngle = currentAngle + extraSpins + Math.random() * Math.PI * 2;
+    }
+
+    const startAngle = currentAngle;
+    const duration   = MIN_SPIN_DURATION_MS + Math.random() * MAX_ADDITIONAL_DURATION_MS;
+    const startTime  = performance.now();
+
+    function easeOut(t) {
+      return 1 - Math.pow(1 - t, EASE_OUT_POWER);
+    }
+
+    function frame(now) {
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      currentAngle = startAngle + (targetAngle - startAngle) * easeOut(t);
+      drawWheel();
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        currentAngle = targetAngle % (Math.PI * 2);
+        finishSpin();
+      }
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  function finishSpin() {
+    spinning = false;
+    spinBtn.disabled = false;
+
+    const n = segments.length;
+    const slice = (Math.PI * 2) / n;
+    // Pointer is at top (−π/2). Determine which slice is at the top.
+    // currentAngle is the rotation applied; segment i starts at currentAngle + i*slice.
+    // We want the segment whose arc contains -π/2.
+    const pointerAngle = ((-Math.PI / 2 - currentAngle) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+    const winner = Math.floor(pointerAngle / slice) % n;
+
+    resultBanner.textContent = `🎉 ${segments[winner]}`;
+    resultBanner.classList.add('show');
+
+    // Clear rig after use
+    if (riggedIndex >= 0) {
+      riggedIndex = -1;
+      syncRigSelect();
+      updateRigBadge();
+    }
+  }
+
+  // ── Rig panel ─────────────────────────────────────────────────────────────
+  function syncRigSelect() {
+    rigSelect.innerHTML = '';
+    segments.forEach((seg, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = seg;
+      if (i === riggedIndex) opt.selected = true;
+      rigSelect.appendChild(opt);
+    });
+  }
+
+  function updateRigBadge() {
+    rigBadge.classList.toggle('active', riggedIndex >= 0);
+  }
+
+  function openRigPanel() {
+    syncRigSelect();
+    rigPanel.style.display = 'block';
+  }
+
+  rigConfirm.addEventListener('click', () => {
+    riggedIndex = parseInt(rigSelect.value, 10);
+    updateRigBadge();
+    rigPanel.style.display = 'none';
+  });
+
+  rigClear.addEventListener('click', () => {
+    riggedIndex = -1;
+    updateRigBadge();
+    rigPanel.style.display = 'none';
+  });
+
+  rigClose.addEventListener('click', () => {
+    rigPanel.style.display = 'none';
+  });
+
+  // ── Secret: click hub 5× quickly ─────────────────────────────────────────
+  hubOverlay.addEventListener('click', () => {
+    if (spinning) return;
+
+    // Visual ripple feedback (very subtle — won't look suspicious)
+    const ripple = document.createElement('div');
+    ripple.className = 'hub-ripple';
+    wheelCont.appendChild(ripple);
+    ripple.addEventListener('animationend', () => ripple.remove());
+
+    hubClicks++;
+    clearTimeout(hubClickTimer);
+    if (hubClicks >= HUB_SECRET_CLICKS) {
+      hubClicks = 0;
+      if (segments.length === 0) return;
+      openRigPanel();
+    } else {
+      hubClickTimer = setTimeout(() => { hubClicks = 0; }, HUB_CLICK_TIMEOUT_MS);
+    }
+  });
+
+  // ── Add segment ───────────────────────────────────────────────────────────
+  addBtn.addEventListener('click', addSegment);
+  newInput.addEventListener('keydown', e => { if (e.key === 'Enter') addSegment(); });
+
+  // ── Spin button ───────────────────────────────────────────────────────────
+  spinBtn.addEventListener('click', spin);
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  renderList();
+  drawWheel();
+</script>
+</body>
+</html>
